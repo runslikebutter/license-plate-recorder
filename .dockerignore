@@ -1,0 +1,87 @@
+# Docker ignore file for License Plate Recorder
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation that doesn't need to be in container
+*.md
+!README-Docker.md
+
+# Local development files
+.env.local
+.env.development
+
+# Test files and videos (too large for container)
+input_videos/*.mp4
+input_videos/*.avi
+input_videos/*.mov
+
+# Output directories (will be mounted)
+recordings/
+logs/
+output/
+
+# Model cache (will be volume mounted)
+.cache/
+models/*.engine
+models/*.onnx
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Docker files not needed in container
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile*
+
+# Scripts not needed in runtime
+scripts/
+setup.py
+
+# Requirements for different platforms
+requirements-mac.txt
+requirements-dev.txt
