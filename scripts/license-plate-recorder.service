@@ -1,0 +1,48 @@
+# Systemd service file for License Plate Recorder
+# Copy to /etc/systemd/system/ and enable with:
+# sudo systemctl enable license-plate-recorder.service
+# sudo systemctl start license-plate-recorder.service
+
+[Unit]
+Description=License Plate Detection and Recording System
+Requires=docker.service
+After=docker.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=forking
+Restart=always
+RestartSec=30
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+# Change this to your project directory
+WorkingDirectory=/opt/license-plate-recorder
+
+# Commands to run
+ExecStartPre=-/usr/local/bin/docker-compose down
+ExecStart=/usr/local/bin/docker-compose up -d
+ExecStop=/usr/local/bin/docker-compose down
+ExecReload=/usr/local/bin/docker-compose restart
+
+# User and group (adjust as needed)
+User=jetson
+Group=jetson
+
+# Environment
+Environment=COMPOSE_PROJECT_NAME=license-plate-recorder
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=license-plate-recorder
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/license-plate-recorder
+
+[Install]
+WantedBy=multi-user.target

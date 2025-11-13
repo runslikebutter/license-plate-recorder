@@ -1,0 +1,36 @@
+# License Plate Recorder Requirements for Jetson Nano Orin
+# Optimized for ARM64 architecture and CUDA support
+
+# Core dependencies for computer vision and AI (Jetson-optimized)
+# Note: OpenCV will be provided by system packages (python3-opencv)
+ultralytics>=8.0.0
+numpy>=1.21.0,<1.25.0  # Compatible with Jetson
+torch>=1.11.0  # Will use Jetson PyTorch wheels
+torchvision>=0.12.0  # Will use Jetson torchvision wheels
+
+# License plate detection and OCR (uses system onnxruntime-gpu)
+fast-alpr>=0.3.0
+
+# Tracking and computer vision utilities
+supervision>=0.16.0
+
+# Configuration and utilities
+pyyaml>=6.0
+Pillow>=9.0.0,<10.0.0  # Compatible version for ARM64
+scipy>=1.7.0,<1.10.0  # Jetson-compatible version
+psutil>=5.9.0
+
+# GStreamer Python bindings (already installed via system packages)
+PyGObject>=3.42.0
+
+# Build tools and utilities
+setuptools>=60.0.0
+wheel>=0.37.0
+
+# Optional: For better performance monitoring on Jetson
+# jetson-stats  # Already installed in base image
+
+# Note: Some packages are intentionally omitted or version-constrained for Jetson compatibility:
+# - opencv-contrib-python: Will use system OpenCV instead
+# - Latest numpy versions: Can cause conflicts with system packages
+# - torch/torchvision: Should use official Jetson wheels when available

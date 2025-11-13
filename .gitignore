@@ -1,0 +1,104 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# Claude Code
+.claude/
+
+# Logs
+*.log
+logs/
+license_plate_recorder.log
+
+# Output directories
+recordings/*.mp4
+recordings/*.avi
+input_videos/*.mp4
+input_videos/*.avi
+input_videos/*.mov
+
+# Keep directory structure
+!recordings/.gitkeep
+!input_videos/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+screenshot_*.jpg
+screenshot_*.png
+
+# Model cache
+.cache/
+*.engine
+*.onnx
+models/*.engine
+
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Jetson-specific
+required_libs/*.whl
+
+# Docker
+docker-compose.override.yml
+
+# System files
+Thumbs.db
+.DS_Store
+*.bak
+*.swp

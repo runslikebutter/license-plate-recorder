@@ -1,0 +1,62 @@
+# License Plate Detection and Recording System Configuration
+
+detection:
+  # Fast-ALPR model configuration
+  model_detector: "yolo-v9-t-640-license-plate-end2end"
+  model_ocr: "cct-s-v1-global-model"
+  confidence_threshold: 0.3
+  enable_ocr: true
+
+  # Image processing settings
+  crop_position: "center"  # left, center, right - horizontal position of square crop
+  detection_input_size: 640  # Input size for detection model
+  ocr_crop_size: [128, 64]  # [width, height] for OCR crops
+
+recording:
+  # Recording timing (in seconds)
+  pre_plate_buffer: 3      # Seconds before plate detection to include
+  post_plate_buffer: 5     # Seconds after plate detection to include
+  max_duration: 30         # Maximum recording duration in seconds
+
+  # Output settings
+  output_dir: "./recordings"
+  video_codec: "mp4v"      # Video codec for output files
+  default_fps: 30          # Default FPS if detection fails
+
+tracking:
+  # ByteTracker settings
+  track_thresh: 0.3              # Detection confidence threshold for tracking
+  track_buffer: 30               # Number of frames to keep lost tracks
+  match_thresh: 0.8              # Threshold for matching detections to tracks
+
+  # License plate specific tracking
+  confidence_aggregation: true   # Enable OCR confidence aggregation
+  min_detections_for_recording: 3  # Minimum detections before triggering recording
+
+# Detection zone configuration (loaded from detection_zone.json)
+zone:
+  enabled: true
+
+stream:
+  # RTSP configuration
+  rtsp_url: "rtsp://camera_ip/stream"
+  reconnect_delay: 5           # Initial seconds to wait before reconnecting
+  connection_timeout: 10       # Connection timeout in seconds
+  max_reconnect_attempts: 10   # Maximum number of reconnection attempts
+
+gstreamer:
+  # Hardware acceleration (Jetson only)
+  use_hardware_decoding: false
+
+  # Frame handling
+  buffer_size: 1               # Minimal buffering for low latency
+  latency: 0                   # No latency limit
+  drop_on_latency: false       # Never drop frames due to latency
+
+  # RTSP connection settings
+  protocols: tcp               # Use TCP for reliable transport
+  timeout: 60                  # Connection timeout in seconds
+
+logging:
+  level: INFO
+  file: license_plate_recorder.log
