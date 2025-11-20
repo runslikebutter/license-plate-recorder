@@ -1,7 +1,7 @@
 import cv2
 import time
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional
 from ..utils.logger import setup_logger
 from ..utils.config import Config
 
@@ -17,36 +17,54 @@ class RTSPCapture:
 
         self.cap: Optional[cv2.VideoCapture] = None
         self.is_connected = False
+        self.source_fps = 15
+        self.frame_interval = 1.0 / self.source_fps
 
     def connect(self) -> bool:
         try:
-            # Set up GStreamer pipeline for OpenCV
-            if self.config.gstreamer.get('use_hardware_decoding', False):
-                # For Jetson with hardware decoding
-                gst_pipeline = (
-                    f"rtspsrc location={self.rtsp_url} latency=0 ! "
-                    "rtph264depay ! h264parse ! nvv4l2decoder ! "
-                    "nvvidconv ! video/x-raw,format=BGRx ! "
-                    "videoconvert ! video/x-raw,format=BGR ! appsink"
-                )
-            else:
-                # Software decoding
-                gst_pipeline = (
-                    f"rtspsrc location={self.rtsp_url} latency=0 ! "
-                    "rtph264depay ! h264parse ! avdec_h264 ! "
-                    "videoconvert ! video/x-raw,format=BGR ! appsink"
-                )
+            # Prepare RTSP URL for FFmpeg backend
+            transport = self.config.stream.get('transport', 'tcp')
+            rtsp_url = self.rtsp_url
 
-            self.cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+            if transport and 'rtsp_transport=' not in rtsp_url.lower():
+                separator = '&' if '?' in rtsp_url else '?'
+                rtsp_url = f"{rtsp_url}{separator}rtsp_transport={transport}"
+
+            self.logger.info(
+                "Connecting to %s stream via FFmpeg backend (transport=%s)",
+                rtsp_url,
+                transport,
+            )
+            self.cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+
+            if not self.cap.isOpened():
+                self.logger.error("Failed to open RTSP stream")
+                return False
+            else:
+                self.logger.info("Connected to RTSP stream")
 
             # Set buffer size
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-            # Test connection
-            ret, _ = self.cap.read()
-            if ret:
+            # Apply timeouts when supported by the OpenCV build
+            timeout_ms = int(self.connection_timeout * 1000)
+            if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms)
+            if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                self.cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms)
+
+            # Prime stream and record FPS
+            self.source_fps = self._detect_source_fps()
+            if self.source_fps > 0:
+                self.frame_interval = 1.0 / self.source_fps
+            else:
+                self.frame_interval = 0.0
+
+            ret, frame = self.cap.read()
+
+            if ret and frame is not None:
                 self.is_connected = True
-                self.logger.info(f"Connected to RTSP stream: {self.rtsp_url}")
+                self.logger.info("Connected to RTSP stream: %s", self.rtsp_url)
                 return True
             else:
                 self.logger.error("Failed to read from RTSP stream")
@@ -57,17 +75,21 @@ class RTSPCapture:
             return False
 
     def read_frame(self) -> Optional[np.ndarray]:
+        """
+        Read frame directly from RTSP stream (blocking)
+        Blocks until next frame arrives or timeout (10s)
+        """
         if not self.cap or not self.is_connected:
             return None
 
         try:
             ret, frame = self.cap.read()
-            if ret:
+            
+            if ret and frame is not None:
                 return frame
-            else:
-                self.logger.warning("Failed to read frame")
-                self.is_connected = False
-                return None
+            
+            self.logger.warning("Failed to read frame from RTSP stream")
+            return None
 
         except Exception as e:
             self.logger.error(f"Error reading frame: {e}")
@@ -75,7 +97,10 @@ class RTSPCapture:
             return None
 
     def reconnect(self) -> bool:
-        self.logger.info(f"Attempting to reconnect in {self.reconnect_delay} seconds...")
+        self.logger.info(
+            "Attempting to reconnect in %s seconds...",
+            self.reconnect_delay,
+        )
         self.disconnect()
         time.sleep(self.reconnect_delay)
         return self.connect()
@@ -99,3 +124,30 @@ class RTSPCapture:
             height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             return (width, height)
         return (1920, 1080)
+
+    def _detect_source_fps(self) -> float:
+        """Read FPS from the capture; fallback to configured default."""
+        fallback_fps = float(self.config.stream.get('fallback_fps', 30.0))
+        if not self.cap:
+            return fallback_fps
+
+        fps = 0.0
+
+        for attempt in range(3):
+            fps = self.cap.get(cv2.CAP_PROP_FPS) or 0.0
+            if fps > 0:
+                if attempt > 0:
+                    self.logger.info("Source FPS detected on retry: %s", fps)
+                break
+            time.sleep(0.1)
+
+        if fps <= 0:
+            self.logger.warning(
+                "Unable to determine source FPS from camera; defaulting to %s",
+                fallback_fps,
+            )
+            fps = float(fallback_fps)
+        else:
+            self.logger.info("Detected source FPS: %s", fps)
+
+        return fps

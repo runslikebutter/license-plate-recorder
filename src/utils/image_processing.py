@@ -17,36 +17,53 @@ def extract_center_square_crop(frame: np.ndarray, crop_position: str = 'center')
 
     Args:
         frame: Input frame
-        crop_position: 'left', 'center', or 'right' - horizontal position of crop
+        crop_position: 'left', 'center', 'right', or 'full' - crop alignment strategy
 
     Returns:
         square_crop, crop_info dict
     """
     h, w = frame.shape[:2]
 
-    # Calculate crop size (square)
-    crop_size = min(h, w)
+    square_mode = 'crop'
+    pad_x = 0
+    pad_y = 0
 
-    # Calculate vertical position (always centered vertically)
-    start_y = (h - crop_size) // 2
-
-    # Calculate horizontal position based on crop_position
-    if crop_position == 'left':
+    if crop_position == 'full':
+        # Letterbox the entire frame into a square canvas to avoid losing content
+        crop_size = max(h, w)
+        square_crop = np.zeros((crop_size, crop_size, 3), dtype=frame.dtype)
+        pad_y = (crop_size - h) // 2
+        pad_x = (crop_size - w) // 2
+        square_crop[pad_y:pad_y + h, pad_x:pad_x + w] = frame
         start_x = 0
-    elif crop_position == 'right':
-        start_x = w - crop_size
-    else:  # 'center' or any other value defaults to center
-        start_x = (w - crop_size) // 2
+        start_y = 0
+        square_mode = 'pad'
+    else:
+        # Calculate crop size (square) limited by the shorter frame dimension
+        crop_size = min(h, w)
 
-    # Crop to square at full resolution
-    square_crop = frame[start_y:start_y + crop_size, start_x:start_x + crop_size]
+        # Vertical position (centered)
+        start_y = (h - crop_size) // 2
+
+        # Horizontal position based on crop_position
+        if crop_position == 'left':
+            start_x = 0
+        elif crop_position == 'right':
+            start_x = w - crop_size
+        else:  # 'center' or any other value defaults to center
+            start_x = (w - crop_size) // 2
+
+        square_crop = frame[start_y:start_y + crop_size, start_x:start_x + crop_size]
 
     crop_info = {
         'start_x': start_x,
         'start_y': start_y,
         'crop_size': crop_size,
         'original_shape': (h, w),
-        'crop_position': crop_position
+        'crop_position': crop_position,
+        'mode': square_mode,
+        'pad_x': pad_x,
+        'pad_y': pad_y,
     }
 
     return square_crop, crop_info
@@ -140,14 +157,29 @@ def scale_detections_from_640_to_square(alpr_results: List[Any], scale_factor: f
 def transform_bbox_to_original(bbox: List[float], crop_info: Dict[str, Any]) -> List[float]:
     """Transform bbox from square coordinates to original frame coordinates"""
     x1, y1, x2, y2 = bbox
-    start_x = crop_info['start_x']
-    start_y = crop_info['start_y']
+    height, width = crop_info.get('original_shape', (0, 0))
+    mode = crop_info.get('mode', 'crop')
 
-    # Transform back to original frame coordinates
-    orig_x1 = x1 + start_x
-    orig_y1 = y1 + start_y
-    orig_x2 = x2 + start_x
-    orig_y2 = y2 + start_y
+    if mode == 'pad':
+        pad_x = crop_info.get('pad_x', 0)
+        pad_y = crop_info.get('pad_y', 0)
+        orig_x1 = x1 - pad_x
+        orig_y1 = y1 - pad_y
+        orig_x2 = x2 - pad_x
+        orig_y2 = y2 - pad_y
+    else:
+        start_x = crop_info.get('start_x', 0)
+        start_y = crop_info.get('start_y', 0)
+        orig_x1 = x1 + start_x
+        orig_y1 = y1 + start_y
+        orig_x2 = x2 + start_x
+        orig_y2 = y2 + start_y
+
+    # Clamp to original frame bounds
+    orig_x1 = max(0, min(width, orig_x1))
+    orig_y1 = max(0, min(height, orig_y1))
+    orig_x2 = max(0, min(width, orig_x2))
+    orig_y2 = max(0, min(height, orig_y2))
 
     return [orig_x1, orig_y1, orig_x2, orig_y2]
 

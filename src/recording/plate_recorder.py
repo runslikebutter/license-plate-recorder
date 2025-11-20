@@ -63,8 +63,8 @@ class PlateRecorder:
         self.current_video_writer = None
         self.current_output_file = None
 
-        # Circular buffer for pre-recording
-        buffer_duration = pre_plate_duration + 5.0  # Extra buffer for safety
+        # Circular buffer for pre-recording (reduced for memory efficiency)
+        buffer_duration = pre_plate_duration + 1.0  # Minimal extra buffer
         self.frame_buffer = CircularBuffer(buffer_duration, int(fps))
 
         # Recording metrics

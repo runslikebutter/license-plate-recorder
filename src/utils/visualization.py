@@ -295,24 +295,29 @@ class Visualizer:
         if not crop_info:
             return frame
 
-        start_x = crop_info.get('start_x', 0)
-        start_y = crop_info.get('start_y', 0)
-        crop_size = crop_info.get('crop_size', 0)
         crop_position = crop_info.get('crop_position', 'center')
+        mode = crop_info.get('mode', 'crop')
 
-        if crop_size <= 0:
-            return frame
-
-        # Draw crop area rectangle
-        x1, y1 = start_x, start_y
-        x2, y2 = start_x + crop_size, start_y + crop_size
+        if mode == 'pad':
+            height, width = crop_info.get('original_shape', frame.shape[:2])
+            x1, y1 = 0, 0
+            x2, y2 = width, height
+        else:
+            crop_size = crop_info.get('crop_size', 0)
+            if crop_size <= 0:
+                return frame
+            start_x = crop_info.get('start_x', 0)
+            start_y = crop_info.get('start_y', 0)
+            x1, y1 = start_x, start_y
+            x2, y2 = start_x + crop_size, start_y + crop_size
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), self.colors['blue'], 2)
 
         # Add crop area label
         crop_label = f"Detection Area ({crop_position})"
-        cv2.putText(frame, crop_label, (x1, y1 - 10),
-                   self.font, 0.6, self.colors['blue'], 2)
+        label_y = y1 - 10 if y1 > 20 else y2 + 25
+        cv2.putText(frame, crop_label, (x1, label_y),
+                    self.font, 0.6, self.colors['blue'], 2)
 
         return frame
 

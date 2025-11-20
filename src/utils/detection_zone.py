@@ -317,7 +317,7 @@ class DetectionZone:
             'left', 'center', or 'right' based on zone position
         """
         if not self.is_enabled():
-            return 'center'  # Default to center if zone is disabled
+            return 'full'  # Default to using full frame when zone is disabled
 
         # Calculate the zone boundaries
         zone_rect = self.calculate_zone(frame_width, frame_height)

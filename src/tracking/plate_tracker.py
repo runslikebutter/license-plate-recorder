@@ -4,10 +4,12 @@ Integrates the proven tracking logic from zalpr.py with ByteTracker
 """
 
 import time
+import logging
 import numpy as np
 from typing import List, Dict, Optional, Tuple, Any
 from collections import defaultdict, Counter
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 import supervision as sv
 
@@ -168,6 +170,48 @@ class LicensePlateTracker:
             f"buffer={track_buffer}, match={match_thresh}"
         )
 
+    @staticmethod
+    def _calculate_text_similarity(text1: str, text2: str) -> float:
+        """Calculate similarity between two OCR text strings"""
+        if not text1 or not text2:
+            return 0.0
+        
+        text1 = text1.upper().strip()
+        text2 = text2.upper().strip()
+        
+        if text1 == text2:
+            return 1.0
+        
+        # Use sequence matcher for fuzzy matching
+        return SequenceMatcher(None, text1, text2).ratio()
+
+    def _find_track_by_ocr(self, detection: Detection, max_frame_gap: int = 5) -> Optional[int]:
+        """Find an existing track that matches this detection based on OCR similarity"""
+        if not detection.ocr_text or detection.ocr_text == 'Unknown':
+            return None
+        
+        best_track_id = None
+        best_similarity = 0.7  # Minimum similarity threshold
+        
+        for track_id, track_data in self.active_tracks.items():
+            # Only consider tracks seen recently
+            frame_gap = self.current_frame - track_data.last_seen_frame
+            if frame_gap > max_frame_gap:
+                continue
+            
+            # Skip tracks that already triggered recording to avoid duplicates
+            if track_data.has_triggered_recording:
+                continue
+            
+            # Compare with best plate text
+            if track_data.best_plate_text and track_data.best_plate_text != 'Unknown':
+                similarity = self._calculate_text_similarity(detection.ocr_text, track_data.best_plate_text)
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_track_id = track_id
+        
+        return best_track_id
+
     def update(self, detections: List[Detection], frame_number: int) -> List[Detection]:
         """
         Update tracking with new detections
@@ -234,6 +278,14 @@ class LicensePlateTracker:
                 ocr_confidence = matched_detection.ocr_confidence or 0.0
 
                 track_data.update_ocr(ocr_text, ocr_confidence, frame_number, bbox.tolist())
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug(
+                        "Track %s update: detections=%s, best='%s' (%.2f)",
+                        track_id,
+                        track_data.total_detections,
+                        track_data.best_plate_text or 'Unknown',
+                        track_data.best_confidence or 0.0,
+                    )
 
                 # Add tracking information to detection
                 matched_detection.track_id = track_id
@@ -241,7 +293,7 @@ class LicensePlateTracker:
                 matched_detection.ocr_confidence = track_data.best_confidence
 
                 # Determine if this detection should trigger recording
-                should_trigger = self._should_trigger_recording(track_data)
+                should_trigger = self._should_trigger_recording(track_data, log_reason=True)
                 matched_detection.should_trigger_recording = should_trigger
 
                 if should_trigger and not track_data.has_triggered_recording:
@@ -259,6 +311,53 @@ class LicensePlateTracker:
                         f"(conf: {track_data.best_confidence:.2f}, {track_data.total_detections} detections)"
                     )
 
+        # Try OCR-based matching for detections that weren't matched by ByteTracker
+        matched_detection_ids = {id(det) for det in tracked_plates}
+        unmatched_detections = [det for det in detections if id(det) not in matched_detection_ids]
+        
+        for detection in unmatched_detections:
+            # Only try OCR matching for high-confidence detections with readable text
+            if detection.confidence < 0.7 or not detection.ocr_text or detection.ocr_text == 'Unknown':
+                continue
+            
+            # Try to find an existing track by OCR similarity
+            track_id = self._find_track_by_ocr(detection)
+            
+            if track_id is not None:
+                # Match found! Add this detection to the existing track
+                track_data = self.active_tracks[track_id]
+                current_track_ids.add(track_id)
+                
+                # Update track with OCR information
+                track_data.update_ocr(
+                    detection.ocr_text,
+                    detection.ocr_confidence or 0.0,
+                    frame_number,
+                    detection.bbox
+                )
+                
+                self.logger.debug(
+                    f"OCR-matched detection to track {track_id}: '{detection.ocr_text}' "
+                    f"(similarity with '{track_data.best_plate_text}')"
+                )
+                
+                # Add tracking information to detection
+                detection.track_id = track_id
+                detection.ocr_text = track_data.best_plate_text
+                detection.ocr_confidence = track_data.best_confidence
+                
+                # Determine if this detection should trigger recording
+                should_trigger = self._should_trigger_recording(track_data, log_reason=True)
+                detection.should_trigger_recording = should_trigger
+                
+                if should_trigger and not track_data.has_triggered_recording:
+                    self.logger.info(
+                        f"Track {track_id} ready for recording: '{track_data.best_plate_text}' "
+                        f"(conf: {track_data.best_confidence:.2f}, detections: {track_data.total_detections})"
+                    )
+                
+                tracked_plates.append(detection)
+
         # Clean up old tracks
         self._cleanup_old_tracks(current_track_ids, current_time)
 
@@ -272,13 +371,15 @@ class LicensePlateTracker:
         for detection in detections:
             iou = calculate_iou(detection.bbox, tracked_bbox)
 
-            if iou > best_iou and iou > 0.3:  # Minimum IoU threshold
+            # Lower threshold for fast-moving objects
+            # OCR-based matching handles cases where IoU is too low
+            if iou > best_iou and iou > 0.15:
                 best_iou = iou
                 best_match = detection
 
         return best_match
 
-    def _should_trigger_recording(self, track_data: PlateTrackData) -> bool:
+    def _should_trigger_recording(self, track_data: PlateTrackData, log_reason: bool = False) -> bool:
         """Determine if a track should trigger a recording"""
         # Don't trigger if already triggered
         if track_data.has_triggered_recording:
@@ -286,14 +387,34 @@ class LicensePlateTracker:
 
         # Must have minimum number of detections
         if track_data.total_detections < self.min_detections_for_recording:
+            if log_reason:
+                self.logger.debug(
+                    "Track %s not ready: detections %s/%s",
+                    track_data.track_id,
+                    track_data.total_detections,
+                    self.min_detections_for_recording,
+                )
             return False
 
         # Must have readable plate text
         if track_data.best_plate_text == 'Unknown' or not track_data.best_plate_text:
+            if log_reason:
+                self.logger.debug(
+                    "Track %s not ready: OCR text unavailable (detections=%s)",
+                    track_data.track_id,
+                    track_data.total_detections,
+                )
             return False
 
         # Must have reasonable confidence if aggregation is enabled
         if self.confidence_aggregation and track_data.best_confidence < 0.3:
+            if log_reason:
+                self.logger.debug(
+                    "Track %s not ready: OCR confidence %.2f < %.2f",
+                    track_data.track_id,
+                    track_data.best_confidence,
+                    0.3,
+                )
             return False
 
         return True
