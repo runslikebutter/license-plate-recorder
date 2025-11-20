@@ -68,9 +68,6 @@ screenshot_*.png
 
 # Model cache
 .cache/
-*.engine
-*.onnx
-models/*.engine
 
 # Test coverage
 htmlcov/
