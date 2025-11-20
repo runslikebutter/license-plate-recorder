@@ -18,6 +18,7 @@ RUN addgroup --gid 1200 monarch && \
     mkdir -p /home/monarch/.local/bin && \
     chown -R monarch:monarch /home/monarch && \
     mkdir -p /etc/recorder && \
+    mkdir -p /etc/recorder/models && \
     chown -R monarch:monarch /etc/recorder && \
     mkdir -p /app && \
     chown monarch:monarch /app
@@ -38,8 +39,8 @@ RUN pip install --no-cache-dir numpy==1.26.4
 RUN pip install --no-cache-dir pycuda
 
 COPY --chown=monarch:monarch src/ src/
-COPY --chown=monarch:monarch models/car_lpd_11nv6.engine /etc/recorder/models/car_lpd_11nv6.engine
-COPY --chown=monarch:monarch models/fast_plate_ocr/ /etc/recorder/models/fast_plate_ocr/
+COPY --chown=monarch:monarch models/car_lpd_11nv6.engine /etc/recorder/models
+COPY --chown=monarch:monarch models/fast_plate_ocr /etc/recorder/models
 
 RUN pip install --no-cache-dir -e .
 
