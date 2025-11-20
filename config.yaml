@@ -1,16 +1,17 @@
 # License Plate Detection and Recording System Configuration
 
 detection:
-  # Fast-ALPR model configuration
-  model_detector: "yolo-v9-t-640-license-plate-end2end"
-  model_ocr: "cct-s-v1-global-model"
-  confidence_threshold: 0.3
+  # YOLO TensorRT model configuration
+  engine_path: "etc/spp/models/car_lpd_11nv6.engine"  # Path to detection TensorRT engine
+  confidence_threshold: 0.3                            # Minimum confidence for detections
+  iou_threshold: 0.45                                  # IoU threshold for NMS
+  detection_input_size: 640                            # Input size for detection model
+  max_det: 300                                         # Maximum detections per image
+  
+  # OCR TensorRT configuration
   enable_ocr: true
-
-  # Image processing settings
-  crop_position: "center"  # left, center, right - horizontal position of square crop
-  detection_input_size: 640  # Input size for detection model
-  ocr_crop_size: [128, 64]  # [width, height] for OCR crops
+  ocr_engine_path: "/etc/spp/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
+  ocr_config_path: "/etc/spp/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
 
 recording:
   # Recording timing (in seconds)
@@ -26,12 +27,12 @@ recording:
 tracking:
   # ByteTracker settings
   track_thresh: 0.3              # Detection confidence threshold for tracking
-  track_buffer: 30               # Number of frames to keep lost tracks
-  match_thresh: 0.8              # Threshold for matching detections to tracks
+  track_buffer: 90               # Number of frames to keep lost tracks (6 seconds at 15fps)
+  match_thresh: 0.2              # IoU threshold for bbox matching (relaxed for fast motion)
 
   # License plate specific tracking
-  confidence_aggregation: true   # Enable OCR confidence aggregation
-  min_detections_for_recording: 3  # Minimum detections before triggering recording
+  confidence_aggregation: true   # Enable OCR aggregation for better accuracy
+  min_detections_for_recording: 3  # Trigger recording after 3 consistent OCR detections
 
 # Detection zone configuration (loaded from detection_zone.json)
 zone:
@@ -43,20 +44,8 @@ stream:
   reconnect_delay: 5           # Initial seconds to wait before reconnecting
   connection_timeout: 10       # Connection timeout in seconds
   max_reconnect_attempts: 10   # Maximum number of reconnection attempts
-
-gstreamer:
-  # Hardware acceleration (Jetson only)
-  use_hardware_decoding: false
-
-  # Frame handling
-  buffer_size: 1               # Minimal buffering for low latency
-  latency: 0                   # No latency limit
-  drop_on_latency: false       # Never drop frames due to latency
-
-  # RTSP connection settings
-  protocols: tcp               # Use TCP for reliable transport
-  timeout: 60                  # Connection timeout in seconds
+  transport: tcp               # Use TCP for reliable transport
 
 logging:
-  level: INFO
+  level: DEBUG
   file: license_plate_recorder.log

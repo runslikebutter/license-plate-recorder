@@ -25,7 +25,7 @@ from src.utils.logger import setup_logger
 from src.utils.visualization import Visualizer
 from src.utils.detection_zone import DetectionZone
 from src.utils.zone_editor import ZoneEditor
-from src.detection.license_plate_detector import LicensePlateDetector
+from src.detection.yolo_lpd_detector import YOLOLPDDetector
 from src.tracking.plate_tracker import LicensePlateTracker
 from src.recording.plate_recorder import PlateRecorder
 from src.capture.rtsp_capture import RTSPCapture
@@ -153,14 +153,20 @@ class LicensePlateRecorder:
 
         # Initialize detector
         detector_config = self.config.detection
-        self.detector = LicensePlateDetector(
-            detector_model=detector_config.get('model_detector', 'yolo-v9-t-640-license-plate-end2end'),
-            ocr_model=detector_config.get('model_ocr', 'cct-s-v1-global-model'),
+        engine_path = detector_config.get(
+            'engine_path',
+            'src/models/dev/car_lpd_11nv6.engine'
+        )
+        self.detector = YOLOLPDDetector(
+            model_path=engine_path,
             confidence_threshold=detector_config.get('confidence_threshold', 0.3),
-            crop_position=detector_config.get('crop_position', 'center'),
-            detection_input_size=detector_config.get('detection_input_size', 640),
-            ocr_crop_size=tuple(detector_config.get('ocr_crop_size', [128, 64])),
-            enable_ocr=detector_config.get('enable_ocr', True)
+            iou_threshold=detector_config.get('iou_threshold', 0.45),
+            input_size=detector_config.get('detection_input_size', 640),
+            max_det=detector_config.get('max_det', 300),
+            device='cuda:0',
+            enable_ocr=detector_config.get('enable_ocr', True),
+            ocr_engine_path=detector_config.get('ocr_engine_path'),
+            ocr_config_path=detector_config.get('ocr_config_path')
         )
 
         # Initialize detection zone
@@ -387,8 +393,8 @@ class LicensePlateRecorder:
             # Toggle detection zone on/off
             if self.detection_zone.is_enabled():
                 self.detection_zone.disable_zone(save=True)
-                self.detector.set_crop_position('center')  # Default to center when zone disabled
-                self.logger.info("Detection zone disabled - crop position set to center")
+                self.detector.set_crop_position('full')  # Default to full frame when zone disabled
+                self.logger.info("Detection zone disabled - crop position set to full frame")
             else:
                 self.detection_zone.reset_to_defaults(save=True)
                 optimal_crop = self.detection_zone.get_optimal_crop_position(self.width, self.height)
@@ -402,7 +408,8 @@ class LicensePlateRecorder:
         if self.zone_editor and self.detection_zone:
             left_x, top_y, right_x, bottom_y = self.zone_editor.get_zone_rect()
             self.detection_zone.update_zone_from_pixels(
-                top_y, bottom_y, left_x, right_x, self.width, self.height, save=False
+                top_y, bottom_y, left_x, right_x, self.width, self.height, 
+                save=False
             )
 
     def calculate_fps(self):
@@ -452,7 +459,7 @@ class LicensePlateRecorder:
                     if frame is not None:
                         frame_count += 1
 
-                        # Process frame
+                        # Process frame (with detection)
                         try:
                             detections, tracked_detections = self.process_frame(frame, frame_count)
                         except Exception as e:
@@ -592,7 +599,11 @@ class LicensePlateRecorder:
 
         # Detector stats
         detector_stats = self.detector.get_performance_stats()
-        self.logger.info(f"Detector performance: {detector_stats['inference_fps']:.1f} fps")
+        if 'avg_inference_time' in detector_stats and detector_stats['avg_inference_time'] > 0:
+            inference_fps = 1.0 / detector_stats['avg_inference_time']
+            self.logger.info(f"Detector performance: {inference_fps:.1f} fps")
+        if 'avg_ocr_time' in detector_stats and detector_stats['avg_ocr_time'] > 0:
+            self.logger.info(f"OCR avg time: {detector_stats['avg_ocr_time']:.3f}s")
 
         # Tracker stats
         tracker_stats = self.tracker.get_statistics()
@@ -658,7 +669,7 @@ Examples:
     )
     parser.add_argument(
         "--crop-position",
-        choices=['left', 'center', 'right'],
+        choices=['left', 'center', 'right', 'full'],
         help="Override crop position for detection"
     )
     parser.add_argument(
@@ -721,6 +732,7 @@ Examples:
         print(f"Error: {e}")
         return 1
     finally:
+        recorder.stop()
         os.unlink(temp_config_path)
 
 

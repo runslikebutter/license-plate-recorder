@@ -1,27 +1,12 @@
-# License Plate Recorder Requirements
-# Core dependencies for computer vision and AI
-opencv-contrib-python>=4.8.0
-ultralytics>=8.0.0
-numpy>=1.26.0
-torch>=2.0.0
-torchvision>=0.15.0
+PyYAML>=6.0
+ultralytics==8.3.134
+python-dotenv==1.1.1
+pycuda>=2024.1
 
-# License plate detection and OCR
-fast-alpr[onnx]>=0.3.0
-
-# Tracking and computer vision utilities
+# Tracking and computer vision
 supervision>=0.16.0
-
-# Configuration and utilities
-pyyaml>=6.0
 Pillow>=10.0.0
-scipy>=1.10.0
 psutil>=5.9.0
 
-# GStreamer Python bindings (for RTSP streaming)
-PyGObject>=3.42.0
-
-# Build tools
-setuptools>=68.0.0
-
-# Note: opencv-contrib-python is required for GUI functionality on macOS
+required_libs/torchvision-0.18.0a0+6043bc2-cp310-cp310-linux_aarch64.whl
+required_libs/torch-2.3.0-cp310-cp310-linux_aarch64.whl
