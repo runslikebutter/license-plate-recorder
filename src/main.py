@@ -9,7 +9,6 @@ import sys
 import signal
 import time
 import cv2
-import numpy as np
 import argparse
 import gc
 import psutil
@@ -20,17 +19,17 @@ from datetime import datetime
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.utils.config import Config
-from src.utils.logger import setup_logger
-from src.utils.visualization import Visualizer
-from src.utils.detection_zone import DetectionZone
-from src.utils.zone_editor import ZoneEditor
-from src.detection.yolo_lpd_detector import YOLOLPDDetector
-from src.tracking.plate_tracker import LicensePlateTracker
-from src.recording.plate_recorder import PlateRecorder
-from src.capture.rtsp_capture import RTSPCapture
-from src.capture.file_capture import FileCapture
-from src.capture.directory_capture import DirectoryCapture
+from utils.config import Config
+from utils.logger import setup_logger
+from utils.visualization import Visualizer
+from utils.detection_zone import DetectionZone
+from utils.zone_editor import ZoneEditor
+from detection.yolo_lpd_detector import YOLOLPDDetector
+from tracking.plate_tracker import LicensePlateTracker
+from recording.plate_recorder import PlateRecorder
+from capture.rtsp_capture import RTSPCapture
+from capture.file_capture import FileCapture
+from capture.directory_capture import DirectoryCapture
 
 
 class MemoryMonitor:
@@ -273,12 +272,6 @@ class LicensePlateRecorder:
 
             self.logger.info(f"Capture initialized: {self.width}x{self.height} @ {self.actual_fps}fps")
 
-            # Set optimal crop position based on detection zone location
-            if self.detection_zone.is_enabled():
-                optimal_crop = self.detection_zone.get_optimal_crop_position(self.width, self.height)
-                self.detector.set_crop_position(optimal_crop)
-                self.logger.info(f"Set crop position to '{optimal_crop}' based on detection zone location")
-
             return True
 
         except Exception as e:
@@ -383,23 +376,16 @@ class LicensePlateRecorder:
                         top_p, bottom_p, left_p, right_p = self.zone_editor.get_zone_percentages()
                         self.logger.info(f"Zone saved: T:{top_p:.1f}% B:{bottom_p:.1f}% L:{left_p:.1f}% R:{right_p:.1f}%")
 
-                        # Update crop position based on new zone location
-                        optimal_crop = self.detection_zone.get_optimal_crop_position(self.width, self.height)
-                        self.detector.set_crop_position(optimal_crop)
-                        self.logger.info(f"Updated crop position to '{optimal_crop}' based on new zone location")
                     self.zone_editor.on_zone_changed = None
                     self.logger.info("Zone editing mode DISABLED - zone saved")
         elif key == ord('z'):
             # Toggle detection zone on/off
             if self.detection_zone.is_enabled():
                 self.detection_zone.disable_zone(save=True)
-                self.detector.set_crop_position('full')  # Default to full frame when zone disabled
-                self.logger.info("Detection zone disabled - crop position set to full frame")
+                self.logger.info("Detection zone disabled")
             else:
                 self.detection_zone.reset_to_defaults(save=True)
-                optimal_crop = self.detection_zone.get_optimal_crop_position(self.width, self.height)
-                self.detector.set_crop_position(optimal_crop)
-                self.logger.info(f"Detection zone enabled - crop position set to '{optimal_crop}'")
+                self.logger.info("Detection zone enabled")
 
         return True
 

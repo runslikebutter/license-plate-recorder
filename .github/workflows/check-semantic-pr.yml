@@ -1,0 +1,20 @@
+name: Check semantic PR
+
+on:
+  pull_request:
+    branches:
+      - disable
+    types:
+      - opened
+      - edited
+      - synchronize
+
+jobs:
+  semantic_pr:
+    name: Check for semantic PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        # https://github.com/amannn/action-semantic-pull-request
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}

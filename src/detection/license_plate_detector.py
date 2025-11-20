@@ -5,17 +5,16 @@ Integrates the proven detection and OCR pipeline from zalpr.py
 
 import time
 import numpy as np
-from typing import List, Optional
+from typing import List
 from fast_alpr import ALPR
 
-from .detector import Detector, Detection
-from ..utils.logger import setup_logger
-from ..utils.image_processing import (
+from detection.detector import Detector, Detection
+from utils.logger import setup_logger
+from utils.image_processing import (
     extract_center_square_crop,
     process_frame_for_detection,
     scale_detections_from_640_to_square,
     transform_bbox_to_original,
-    extract_plate_crop,
     validate_bbox
 )
 
@@ -66,7 +65,7 @@ class LicensePlateDetector(Detector):
     def _initialize_alpr(self):
         """Initialize the Fast-ALPR detector"""
         try:
-            self.logger.info(f"Initializing Fast-ALPR detector...")
+            self.logger.info("Initializing Fast-ALPR detector...")
             self.logger.info(f"Detector model: {self.detector_model}")
             self.logger.info(f"OCR model: {self.ocr_model}")
 

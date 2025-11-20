@@ -3,12 +3,11 @@ Directory batch processing for license plate detection
 Handles processing multiple video files in a directory
 """
 
-import os
 import time
 from pathlib import Path
-from typing import List, Optional, Iterator, Tuple, Dict, Any
-from .file_capture import FileCapture
-from ..utils.logger import setup_logger
+from typing import List, Optional, Tuple, Dict, Any
+from capture.file_capture import FileCapture
+from utils.logger import setup_logger
 
 
 class DirectoryCapture:

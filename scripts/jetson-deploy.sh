@@ -86,7 +86,7 @@ detection:
   model_detector: "yolo-v9-t-640-license-plate-end2end"
   model_ocr: "cct-s-v1-global-model"
   confidence_threshold: 0.3
-  crop_position: "center"
+  crop_position: "full"
   detection_input_size: 640
   ocr_crop_size: [128, 64]
   enable_ocr: true

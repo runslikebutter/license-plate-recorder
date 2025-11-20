@@ -2,16 +2,16 @@
 
 detection:
   # YOLO TensorRT model configuration
-  engine_path: "etc/spp/models/car_lpd_11nv6.engine"  # Path to detection TensorRT engine
-  confidence_threshold: 0.3                            # Minimum confidence for detections
-  iou_threshold: 0.45                                  # IoU threshold for NMS
+  engine_path: "/etc/recorder/models/car_lpd_11nv6.engine"  # Path to detection TensorRT engine
+  confidence_threshold: 0.50                            # Minimum confidence for detections
+  iou_threshold: 0.35                                  # IoU threshold for NMS
   detection_input_size: 640                            # Input size for detection model
   max_det: 300                                         # Maximum detections per image
   
   # OCR TensorRT configuration
   enable_ocr: true
-  ocr_engine_path: "/etc/spp/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
-  ocr_config_path: "/etc/spp/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
+  ocr_engine_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
+  ocr_config_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
 
 recording:
   # Recording timing (in seconds)
@@ -20,7 +20,7 @@ recording:
   max_duration: 30         # Maximum recording duration in seconds
 
   # Output settings
-  output_dir: "./recordings"
+  output_dir: "/mnt/data/recorder/recordings"
   video_codec: "mp4v"      # Video codec for output files
   default_fps: 30          # Default FPS if detection fails
 
@@ -32,11 +32,7 @@ tracking:
 
   # License plate specific tracking
   confidence_aggregation: true   # Enable OCR aggregation for better accuracy
-  min_detections_for_recording: 3  # Trigger recording after 3 consistent OCR detections
-
-# Detection zone configuration (loaded from detection_zone.json)
-zone:
-  enabled: true
+  min_detections_for_recording: 3  # Trigger recording after 3 consistent OCR detections:
 
 stream:
   # RTSP configuration
@@ -48,4 +44,4 @@ stream:
 
 logging:
   level: DEBUG
-  file: license_plate_recorder.log
+  file: /mnt/data/recorder/logs/license_plate_recorder.log

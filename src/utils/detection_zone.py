@@ -1,6 +1,5 @@
-import numpy as np
 from typing import List, Tuple, Dict, Optional
-from .zone_config import ZoneConfigManager
+from utils.zone_config import ZoneConfigManager
 
 
 class DetectionZone:

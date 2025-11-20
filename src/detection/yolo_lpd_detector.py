@@ -11,9 +11,9 @@ import torch
 from typing import List, Optional
 from ultralytics import YOLO
 
-from .detector import Detector, Detection
-from .trt_ocr import TensorRTOCR
-from ..utils.logger import setup_logger
+from detection.detector import Detector, Detection
+from detection.trt_ocr import TensorRTOCR
+from utils.logger import setup_logger
 
 
 logger = logging.getLogger(__name__)

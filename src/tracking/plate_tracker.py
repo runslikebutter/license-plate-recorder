@@ -13,9 +13,9 @@ from difflib import SequenceMatcher
 
 import supervision as sv
 
-from ..detection.detector import Detection
-from ..utils.logger import setup_logger
-from ..utils.image_processing import calculate_iou
+from detection.detector import Detection
+from utils.logger import setup_logger
+from utils.image_processing import calculate_iou
 
 
 @dataclass

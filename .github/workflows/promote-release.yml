@@ -1,0 +1,22 @@
+name: Promote release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The pre-release tag version to promote"
+        required: true
+        type: string
+
+jobs:
+  promote_release:
+    name: Promote release
+    runs-on: [ubuntu-latest]
+
+    steps:
+      - name: Promote release
+        uses: softprops/action-gh-release@v2
+        # https://github.com/softprops/action-gh-release
+        with:
+          prerelease: false
+          tag_name: ${{ inputs.tag }}

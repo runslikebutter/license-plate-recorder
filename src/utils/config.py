@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 
 class Config:
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "/etc/recorder/config.yaml"):
         self.config_path = Path(config_path)
         self.config = self._load_config()
 
@@ -41,14 +41,6 @@ class Config:
     @property
     def stream(self):
         return self.config.get('stream', {})
-
-    @property
-    def zone(self):
-        return self.config.get('zone', {})
-
-    @property
-    def gstreamer(self):
-        return self.config.get('gstreamer', {})
 
     @property
     def logging(self):

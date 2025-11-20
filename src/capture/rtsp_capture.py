@@ -2,8 +2,8 @@ import cv2
 import time
 import numpy as np
 from typing import Optional
-from ..utils.logger import setup_logger
-from ..utils.config import Config
+from utils.logger import setup_logger
+from utils.config import Config
 
 
 class RTSPCapture:

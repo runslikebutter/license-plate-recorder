@@ -1,5 +1,6 @@
 import logging
 import sys
+from pathlib import Path
 from typing import Optional
 
 _GLOBAL_LOG_LEVEL = logging.INFO
@@ -60,7 +61,12 @@ def setup_logger(
 
     # File handler
     if log_file:
-        file_handler = logging.FileHandler(log_file)
+        # Ensure log directory exists
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Use mode='w' to overwrite log file on each app restart
+        file_handler = logging.FileHandler(log_file, mode='w')
         file_handler.setFormatter(formatter)
         file_handler.setLevel(log_level)
         logger.addHandler(file_handler)

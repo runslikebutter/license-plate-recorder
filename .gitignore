@@ -91,9 +91,6 @@ coverage.xml
 .env.local
 .env.*.local
 
-# Jetson-specific
-required_libs/*.whl
-
 # Docker
 docker-compose.override.yml
 

@@ -19,8 +19,8 @@ except ImportError as e:
         "TensorRT and PyCUDA required. Install: pip install pycuda"
     ) from e
 
-from .ocr_config import OCRConfig
-from ..utils.logger import setup_logger
+from detection.ocr_config import OCRConfig
+from utils.logger import setup_logger
 
 logger = logging.getLogger(__name__)
 
