@@ -3,8 +3,6 @@ name: Build ARM64 Docker Image and Create Pre-Release
 
 on:
   workflow_dispatch:
-    branches:
-      - release
 
 # Define jobs for the workflow
 jobs:
