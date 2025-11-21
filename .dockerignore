@@ -48,11 +48,6 @@ recordings/
 logs/
 output/
 
-# Model cache (will be volume mounted)
-.cache/
-models/*.engine
-models/*.onnx
-
 # Temporary files
 *.tmp
 *.temp
