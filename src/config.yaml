@@ -10,8 +10,8 @@ detection:
   
   # OCR TensorRT configuration
   enable_ocr: true
-  ocr_engine_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
-  ocr_config_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
+  ocr_engine_path: "/etc/recorder/models/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
+  ocr_config_path: "/etc/recorder/models/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
 
 recording:
   # Recording timing (in seconds)
