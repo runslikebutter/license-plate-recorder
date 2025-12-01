@@ -47,5 +47,6 @@ RUN pip install --no-cache-dir -e .
 RUN mkdir -p /app/.config/Ultralytics
 ENV YOLO_CONFIG_DIR=/app/.config/Ultralytics
 
-
-CMD ["python3", "-m", "main.py"]
+# Use ENTRYPOINT + CMD to allow passing arguments
+ENTRYPOINT ["python3", "src/main.py"]
+CMD []
