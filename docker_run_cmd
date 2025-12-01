@@ -1,0 +1,10 @@
+docker run -d \
+--log-driver=journald \
+--net=host \
+--ipc=host \
+--runtime=nvidia \
+--name lp-recorder \
+--user 1200:1200 \
+-v /mnt/data/recorder:/mnt/data/recorder \
+ghcr.io/runslikebutter/license-plate-recorder:release \
+--input rtsp://172.16.1.114:8554/live/camera1
