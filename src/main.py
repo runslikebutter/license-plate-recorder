@@ -457,8 +457,24 @@ class LicensePlateRecorder:
                     if self.input_type == 'rtsp':
                         frame = self.capture.read_frame()
                         if frame is None:
-                            self.logger.error("Failed to read RTSP frame")
-                            break
+                            # Frame read failed - attempt reconnection with exponential backoff
+                            self.logger.warning("RTSP frame read failed, attempting reconnection...")
+                            
+                            # Keep trying to reconnect (with exponential backoff built-in)
+                            while self.running:
+                                reconnect_success = self.capture.reconnect()
+                                
+                                if reconnect_success:
+                                    self.logger.info("Reconnected successfully, resuming operation")
+                                    break
+                                elif self.capture.reconnect_attempt >= self.capture.max_reconnect_attempts:
+                                    self.logger.error("Failed to reconnect after maximum attempts")
+                                    self.running = False
+                                    break
+                                # If reconnect returns False, it will retry with increasing delay
+                            
+                            # Skip this iteration and try reading again
+                            continue
                     elif self.input_type == 'file':
                         self.logger.debug(f"Reading frame {frame_count}")
                         frame = self.capture.read_frame()

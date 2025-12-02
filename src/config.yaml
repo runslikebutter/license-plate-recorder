@@ -53,9 +53,17 @@ tracking:
 stream:
   # RTSP configuration
   rtsp_url: "rtsp://camera_ip/stream"
-  reconnect_delay: 5           # Initial seconds to wait before reconnecting
-  connection_timeout: 10       # Connection timeout in seconds
-  max_reconnect_attempts: 10   # Maximum number of reconnection attempts
+  
+  # Reconnection settings with exponential backoff
+  initial_reconnect_delay: 2.0    # Initial delay before first reconnect attempt (seconds)
+  max_reconnect_delay: 60.0       # Maximum delay between reconnect attempts (seconds)
+  backoff_multiplier: 2.0         # Multiplier for exponential backoff
+  max_reconnect_attempts: 999999  # Maximum reconnection attempts (essentially unlimited)
+  
+  # Timeout settings (fast failure)
+  connection_timeout: 5        # Connection timeout in seconds (fast failure)
+  read_timeout: 5              # Frame read timeout in seconds (fast failure)
+  
   transport: tcp               # Use TCP for reliable transport
 
 logging:
