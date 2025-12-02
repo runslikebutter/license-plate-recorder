@@ -185,15 +185,20 @@ class TensorRTOCREngine:
     def cleanup(self):
         """Clean up CUDA resources"""
         try:
+            # Free device memory first
             if self.d_input is not None:
                 self.d_input.free()
                 self.d_input = None
             if self.d_output is not None:
                 self.d_output.free()
                 self.d_output = None
+            
+            # Delete CUDA stream
             if self.stream is not None:
                 del self.stream
                 self.stream = None
+            
+            # Delete TensorRT context and engine
             if self.context is not None:
                 del self.context
                 self.context = None
@@ -201,16 +206,18 @@ class TensorRTOCREngine:
                 del self.engine
                 self.engine = None
             
-            # Pop CUDA context (important to prevent cleanup warnings)
+            # Pop CUDA context (CRITICAL: prevents "context stack not empty" error)
             if hasattr(self, 'cuda_ctx') and self.cuda_ctx is not None:
                 try:
                     self.cuda_ctx.pop()
+                    logger.info("CUDA context popped successfully")
+                    self.cuda_ctx = None
                 except Exception as ctx_err:
                     logger.warning(f"CUDA context pop failed: {ctx_err}")
-                finally:
                     self.cuda_ctx = None
+                    
         except Exception as e:
-            logger.warning(f"Error during cleanup: {e}")
+            logger.warning(f"Error during TensorRT engine cleanup: {e}")
 
 
 class TensorRTOCR:

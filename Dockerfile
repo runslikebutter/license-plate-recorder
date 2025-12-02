@@ -39,13 +39,16 @@ RUN pip install --no-cache-dir numpy==1.26.4
 RUN pip install --no-cache-dir pycuda
 
 COPY --chown=monarch:monarch src/ src/
-COPY --chown=monarch:monarch models/car_lpd_11nv6.engine /etc/recorder/models
-COPY --chown=monarch:monarch models/fast_plate_ocr /etc/recorder/models
+COPY --chown=monarch:monarch src/config.yaml /etc/recorder/config.yaml
+COPY --chown=monarch:monarch models/car_lpd_11nv6.engine /etc/recorder/models/
+COPY --chown=monarch:monarch models/fast_plate_ocr /etc/recorder/models/fast_plate_ocr
 
 RUN pip install --no-cache-dir -e .
 
 RUN mkdir -p /app/.config/Ultralytics
 ENV YOLO_CONFIG_DIR=/app/.config/Ultralytics
 
-
-CMD ["python3", "-m", "main.py"]
+# Use ENTRYPOINT + CMD to allow passing arguments
+# Default to config at /etc/recorder/config.yaml
+ENTRYPOINT ["python3", "src/main.py", "--config", "/etc/recorder/config.yaml"]
+CMD []

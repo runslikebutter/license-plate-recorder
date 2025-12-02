@@ -6,6 +6,7 @@ Manages pre/post event recording based on license plate detections
 import cv2
 import time
 import os
+import socket
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -70,6 +71,9 @@ class PlateRecorder:
         # Recording metrics
         self.total_recordings = 0
         self.frames_written = 0
+ 
+        # Track last completed file for upload handling
+        self._last_completed_file = None
 
         self.logger.info(
             f"PlateRecorder initialized: pre={pre_plate_duration}s, "
@@ -178,6 +182,8 @@ class PlateRecorder:
                     f"Recording completed: '{plate_text}' -> {output_file} "
                     f"({frames_written} frames, {duration:.1f}s, {file_size} bytes)"
                 )
+                # Track last completed file for upload handling
+                self._last_completed_file = output_file
                 return output_file
             else:
                 self.logger.error(f"Recording file not found: {output_file}")
@@ -231,7 +237,23 @@ class PlateRecorder:
             return
 
     def _generate_output_filename(self, plate_text: str, timestamp: float) -> str:
-        """Generate output filename for recording"""
+        """Generate output filename for recording with hostname prefix"""
+        # Get hostname - check environment variable first (for Docker), then system hostname
+        try:
+            # Try environment variable first (set by Docker host)
+            hostname = os.environ.get('DEVICE_HOSTNAME') or os.environ.get('HOSTNAME')
+            
+            # Fall back to system hostname if not set
+            if not hostname:
+                hostname = socket.gethostname()
+            
+            # Clean hostname for filename (remove any invalid characters)
+            hostname = "".join(c for c in hostname if c.isalnum() or c in '-_')
+            if not hostname:
+                hostname = "unknown"
+        except Exception:
+            hostname = "unknown"
+        
         # Clean plate text for filename
         clean_plate = "".join(c for c in plate_text if c.isalnum() or c in '-_').upper()
         if not clean_plate:
@@ -241,14 +263,14 @@ class PlateRecorder:
         dt = datetime.fromtimestamp(timestamp)
         time_str = dt.strftime("%Y%m%d_%H%M%S")
 
-        # Create filename
-        filename = f"{time_str}_{clean_plate}.mp4"
+        # Create filename with hostname prefix
+        filename = f"{hostname}_{time_str}_{clean_plate}.mp4"
         output_path = self.output_dir / filename
 
         # Handle duplicate filenames
         counter = 1
         while output_path.exists():
-            filename = f"{time_str}_{clean_plate}_{counter:02d}.mp4"
+            filename = f"{hostname}_{time_str}_{clean_plate}_{counter:02d}.mp4"
             output_path = self.output_dir / filename
             counter += 1
 
