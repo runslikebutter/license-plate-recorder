@@ -13,6 +13,7 @@ import argparse
 import gc
 import psutil
 import os
+import torch
 from pathlib import Path
 from datetime import datetime
 
@@ -24,6 +25,7 @@ from utils.logger import setup_logger
 from utils.visualization import Visualizer
 from utils.detection_zone import DetectionZone
 from utils.zone_editor import ZoneEditor
+from utils.s3_uploader import S3Uploader
 from detection.yolo_lpd_detector import YOLOLPDDetector
 from tracking.plate_tracker import LicensePlateTracker
 from recording.plate_recorder import PlateRecorder
@@ -91,6 +93,7 @@ class LicensePlateRecorder:
         self.detection_zone = None
         self.zone_editor = None
         self.memory_monitor = None
+        self.s3_uploader = None
 
         self.running = False
         self.width = 1280
@@ -125,8 +128,9 @@ class LicensePlateRecorder:
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
-        self.logger.info("Received shutdown signal")
-        self.stop()
+        self.logger.info("Received shutdown signal (Ctrl+C)")
+        self.running = False
+        # Stop will be called in the finally block of run()
 
     def _determine_input_type(self, input_source):
         """Determine the type of input source"""
@@ -185,6 +189,7 @@ class LicensePlateRecorder:
             confidence_aggregation=tracking_config.get('confidence_aggregation', True),
             min_detections_for_recording=tracking_config.get('min_detections_for_recording', 3)
         )
+        self.logger.info("Duplicate prevention: Fuzzy matching within same track only (each new track records independently)")
 
         # Initialize recorder
         recording_config = self.config.recording
@@ -197,6 +202,24 @@ class LicensePlateRecorder:
             fps=self.actual_fps,
             video_codec=recording_config.get('video_codec', 'mp4v')
         )
+
+        # Initialize S3 uploader
+        s3_config = self.config.config.get('s3_upload', {})
+        if s3_config.get('enabled', False):
+            self.s3_uploader = S3Uploader(
+                bucket_name=s3_config.get('bucket', ''),
+                endpoint_url=s3_config.get('endpoint', ''),
+                access_key_id=s3_config.get('access_key_id', ''),
+                secret_access_key=s3_config.get('secret_access_key', ''),
+                enabled=True,
+                delete_after_upload=s3_config.get('delete_after_upload', True),
+                max_retries=s3_config.get('max_retries', 3),
+                retry_delay=s3_config.get('retry_delay', 5.0)
+            )
+            self.s3_uploader.start()
+            self.logger.info("S3 uploader initialized and started")
+        else:
+            self.logger.info("S3 upload is disabled")
 
         # Initialize visualizer if preview is enabled
         if self.preview_enabled:
@@ -310,6 +333,20 @@ class LicensePlateRecorder:
         # Update tracker
         tracked_detections = self.tracker.update(zone_detections, frame_number)
 
+        # Check if recording just completed and queue for upload (check BEFORE starting new recording)
+        if (hasattr(self.recorder, '_last_completed_file') and 
+            self.recorder._last_completed_file):
+            # New recording just completed
+            completed_file = self.recorder._last_completed_file
+            self.recorder._last_completed_file = None
+            self.recordings_saved.append(completed_file)
+            
+            # Queue for S3 upload if enabled
+            if self.s3_uploader and self.s3_uploader.is_enabled():
+                s3_prefix = self.config.config.get('s3_upload', {}).get('prefix', 'recordings')
+                self.s3_uploader.queue_upload(completed_file, s3_prefix)
+                self.logger.info(f"Queued recording for upload: {completed_file}")
+
         # Check for recording triggers
         ready_tracks = self.tracker.get_tracks_ready_for_recording()
         if ready_tracks and not self.recorder.is_recording():
@@ -321,11 +358,6 @@ class LicensePlateRecorder:
                 if success:
                     self.tracker.mark_recording_triggered([ready_tracks[0]])
                     self.zone_detections += 1
-
-        # Check if recording should stop
-        if self.recorder.is_recording():
-            # Recording will auto-stop based on time limits
-            pass
 
         self.total_detections += len(detections)
 
@@ -550,6 +582,17 @@ class LicensePlateRecorder:
             output_file = self.recorder.stop_recording()
             if output_file:
                 self.recordings_saved.append(output_file)
+                # Queue final recording for upload if enabled
+                if self.s3_uploader and self.s3_uploader.is_enabled():
+                    s3_prefix = self.config.config.get('s3_upload', {}).get('prefix', 'recordings')
+                    self.s3_uploader.queue_upload(output_file, s3_prefix)
+
+        # Stop S3 uploader and wait for pending uploads
+        if self.s3_uploader and self.s3_uploader.is_running():
+            pending = self.s3_uploader.get_pending_uploads()
+            if pending > 0:
+                self.logger.info(f"Waiting for {pending} pending uploads to complete...")
+            self.s3_uploader.stop(timeout=60.0)
 
         # Clean up components
         if self.recorder:
@@ -558,11 +601,19 @@ class LicensePlateRecorder:
         if self.capture:
             self.capture.disconnect()
 
+        # Clean up detector (releases CUDA context)
+        if self.detector:
+            self.logger.info("Cleaning up detector resources...")
+            self.detector.cleanup()
+
         if self.preview_enabled:
             cv2.destroyAllWindows()
 
-        # Force garbage collection
+        # Force garbage collection and CUDA cleanup
         gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
         # Print final summary
         self.log_statistics()
@@ -594,6 +645,17 @@ class LicensePlateRecorder:
         # Tracker stats
         tracker_stats = self.tracker.get_statistics()
         self.logger.info(f"Tracks created: {tracker_stats['total_tracks_created']}")
+
+        # S3 uploader stats
+        if self.s3_uploader:
+            s3_stats = self.s3_uploader.get_statistics()
+            self.logger.info(f"\nS3 Upload Statistics:")
+            self.logger.info(f"  Enabled: {s3_stats['enabled']}")
+            self.logger.info(f"  Total queued: {s3_stats['total_queued']}")
+            self.logger.info(f"  Total uploaded: {s3_stats['total_uploaded']}")
+            self.logger.info(f"  Total failed: {s3_stats['total_failed']}")
+            self.logger.info(f"  Total uploaded: {s3_stats['total_bytes_uploaded']/1024/1024:.2f} MB")
+            self.logger.info(f"  Files deleted: {s3_stats['total_deleted']}")
 
         if self.recordings_saved:
             self.logger.info("\nRecorded files:")

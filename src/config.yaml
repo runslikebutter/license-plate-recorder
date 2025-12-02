@@ -10,8 +10,8 @@ detection:
   
   # OCR TensorRT configuration
   enable_ocr: true
-  ocr_engine_path: "/etc/recorder/models/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
-  ocr_config_path: "/etc/recorder/models/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
+  ocr_engine_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_fp16.trt"
+  ocr_config_path: "/etc/recorder/models/fast_plate_ocr/cct-s-v1-global-model/cct_s_v1_global_plate_config.yaml"
 
 recording:
   # Recording timing (in seconds)
@@ -24,6 +24,18 @@ recording:
   video_codec: "mp4v"      # Video codec for output files
   default_fps: 30          # Default FPS if detection fails
 
+# S3 Upload Configuration (Backblaze B2)
+s3_upload:
+  enabled: true                    # Enable/disable S3 uploads
+  bucket: "bmx-dev-lpr-recordings"  # S3 bucket name
+  endpoint: "s3.us-east-005.backblazeb2.com"  # Backblaze B2 endpoint
+  access_key_id: ""  # Set via S3_ACCESS_KEY_ID env var (do not hardcode)
+  secret_access_key: ""  # Set via S3_SECRET_ACCESS_KEY env var (do not hardcode)
+  prefix: "recordings"              # S3 key prefix (folder path)
+  delete_after_upload: true         # Delete local files after successful upload
+  max_retries: 3                    # Maximum upload retry attempts
+  retry_delay: 5.0                  # Delay between retries in seconds
+
 tracking:
   # ByteTracker settings
   track_thresh: 0.3              # Detection confidence threshold for tracking
@@ -32,7 +44,11 @@ tracking:
 
   # License plate specific tracking
   confidence_aggregation: true   # Enable OCR aggregation for better accuracy
-  min_detections_for_recording: 3  # Trigger recording after 3 consistent OCR detections:
+  min_detections_for_recording: 3  # Trigger recording after 3 consistent OCR detections
+  
+  # Duplicate recording prevention (fuzzy matching within same track only)
+  # OCR variations (ABC123 vs ABC1Z3) won't trigger duplicates within same track
+  # Each new track can record independently, even if same plate or within 5 minutes
 
 stream:
   # RTSP configuration

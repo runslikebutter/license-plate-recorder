@@ -142,6 +142,12 @@ class LicensePlateTracker:
         self.min_detections_for_recording = min_detections_for_recording
 
         self.logger = setup_logger(self.__class__.__name__)
+        
+        # Recorded plates cache (tied to active tracks)
+        # Key: normalized plate text, Value: track_id that recorded it
+        # Fuzzy matching prevents OCR variations from triggering duplicate recordings
+        # Entries removed when tracks expire, allowing re-recording on new visits
+        self.recorded_plates_cache: Dict[str, int] = {}
 
         # Initialize ByteTracker (compatible with different supervision versions)
         try:
@@ -184,6 +190,62 @@ class LicensePlateTracker:
         
         # Use sequence matcher for fuzzy matching
         return SequenceMatcher(None, text1, text2).ratio()
+    
+    def _has_ocr_variation_in_same_track(self, track_data: PlateTrackData, similarity_threshold: float = 0.85) -> bool:
+        """
+        Check if this track already recorded a fuzzy-matched plate (OCR variation)
+        Only checks within the SAME track, not across different tracks
+        
+        Args:
+            track_data: The track to check
+            similarity_threshold: Minimum similarity to consider a match (0.85 = 85% similar)
+            
+        Returns:
+            True if this track already triggered recording with a similar plate text
+        """
+        if not track_data.has_triggered_recording:
+            return False
+        
+        current_plate = track_data.best_plate_text
+        if not current_plate or current_plate == 'Unknown':
+            return False
+        
+        current_plate = current_plate.upper().strip()
+        
+        # Check if this track's plate is in the cache
+        if current_plate in self.recorded_plates_cache:
+            cached_track_id = self.recorded_plates_cache[current_plate]
+            if cached_track_id == track_data.track_id:
+                # Exact match, same track already recorded
+                return True
+        
+        # Check for fuzzy matches within this track's own recordings
+        for cached_plate, cached_track_id in self.recorded_plates_cache.items():
+            # Only check plates recorded by THIS track
+            if cached_track_id != track_data.track_id:
+                continue
+            
+            # Calculate similarity
+            similarity = self._calculate_text_similarity(current_plate, cached_plate)
+            
+            if similarity >= similarity_threshold:
+                self.logger.debug(
+                    f"Track {track_data.track_id}: '{current_plate}' is OCR variation of already recorded '{cached_plate}' "
+                    f"({similarity*100:.0f}% similar)"
+                )
+                return True
+        
+        return False
+    
+    def _add_to_recorded_cache(self, plate_text: str, track_id: int):
+        """Add a plate to the recorded cache (tied to track lifetime)"""
+        if not plate_text or plate_text == 'Unknown':
+            return
+        
+        plate_text = plate_text.upper().strip()
+        self.recorded_plates_cache[plate_text] = track_id
+        self.logger.info(f"Added '{plate_text}' (track {track_id}) to recorded plates cache")
+    
 
     def _find_track_by_ocr(self, detection: Detection, max_frame_gap: int = 5) -> Optional[int]:
         """Find an existing track that matches this detection based on OCR similarity"""
@@ -416,15 +478,28 @@ class LicensePlateTracker:
                     0.3,
                 )
             return False
+        
+        # Check if this track already recorded an OCR variation of this plate
+        if self._has_ocr_variation_in_same_track(track_data):
+            if log_reason:
+                self.logger.debug(
+                    "Track %s not triggering: OCR variation of already recorded plate",
+                    track_data.track_id,
+                )
+            return False
 
         return True
 
     def mark_recording_triggered(self, track_ids: List[int]):
-        """Mark tracks as having triggered a recording"""
+        """Mark tracks as having triggered a recording and add to cache"""
         for track_id in track_ids:
             if track_id in self.active_tracks:
                 track_data = self.active_tracks[track_id]
                 track_data.has_triggered_recording = True
+                
+                # Add to recorded plates cache (tied to this track)
+                self._add_to_recorded_cache(track_data.best_plate_text, track_id)
+                
                 self.logger.info(f"Marked track {track_id} as recorded: '{track_data.best_plate_text}'")
 
     def mark_zone_entry(self, track_id: int, frame_number: int):
@@ -436,7 +511,7 @@ class LicensePlateTracker:
                 self.logger.debug(f"Track {track_id} entered detection zone at frame {frame_number}")
 
     def _cleanup_old_tracks(self, current_track_ids: set, current_time: float):
-        """Remove tracks that haven't been seen for a while"""
+        """Remove tracks that haven't been seen for a while and clean recorded cache"""
         tracks_to_remove = []
         track_timeout = 300.0  # 5 minutes
 
@@ -448,10 +523,23 @@ class LicensePlateTracker:
 
         if tracks_to_remove:
             removed_info = []
+            cache_entries_to_remove = []
+            
             for track_id in tracks_to_remove:
                 track_data = self.active_tracks[track_id]
                 removed_info.append(f"{track_id}:{track_data.best_plate_text}")
+                
+                # Remove this track's plate from cache (allows re-recording on next visit)
+                for plate_text, cached_track_id in list(self.recorded_plates_cache.items()):
+                    if cached_track_id == track_id:
+                        cache_entries_to_remove.append(plate_text)
+                
                 del self.active_tracks[track_id]
+
+            # Clean up cache entries for removed tracks
+            for plate_text in cache_entries_to_remove:
+                del self.recorded_plates_cache[plate_text]
+                self.logger.debug(f"Removed '{plate_text}' from cache (track expired, can re-record)")
 
             self.logger.info(f"Removed old tracks: {', '.join(removed_info)}")
 
@@ -470,17 +558,20 @@ class LicensePlateTracker:
         """Get tracking statistics"""
         active_count = len(self.active_tracks)
         recorded_count = sum(1 for track in self.active_tracks.values() if track.has_triggered_recording)
+        cached_plates_count = len(self.recorded_plates_cache)
 
         return {
             'total_tracks_created': self.total_tracks_created,
             'active_tracks': active_count,
             'tracks_with_recordings': recorded_count,
+            'unique_plates_recorded': cached_plates_count,
             'current_frame': self.current_frame,
             'tracker_settings': {
                 'track_thresh': self.track_thresh,
                 'track_buffer': self.track_buffer,
                 'match_thresh': self.match_thresh,
-                'min_detections_for_recording': self.min_detections_for_recording
+                'min_detections_for_recording': self.min_detections_for_recording,
+                'duplicate_prevention': 'fuzzy_matching_only'
             }
         }
 
