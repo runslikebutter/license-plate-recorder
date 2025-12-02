@@ -8,11 +8,28 @@ An automated license plate detection and recording system built for edge deploym
 - **OCR Integration**: Automatic plate text recognition with confidence scoring
 - **Smart Tracking**: ByteTrack-powered tracking with OCR aggregation across frames
 - **Event Recording**: Triggered recordings with configurable pre/post detection buffers
-- **Detection Zones**: Interactive zone editor to focus on specific areas (reduce false positives)
 - **Multi-input**: Supports RTSP streams, video files, or batch directory processing
 - **Jetson Optimized**: Hardware acceleration support for NVIDIA Jetson devices
 
-## Quick Start
+### Deploying docker
+
+you will need s3 bucket access data at runtime to upload recordings.
+
+```bash
+docker run -d \
+--log-driver=journald \
+--net=host \
+--ipc=host \
+--runtime=nvidia \
+--name lp-recorder \
+--user 1200:1200 \
+-e DEVICE_HOSTNAME=$(hostname) \
+-e S3_ACCESS_KEY_ID="your_key_id_here" \
+-e S3_SECRET_ACCESS_KEY="your_secret_key_here" \
+-v /mnt/data/recorder:/mnt/data/recorder \
+ghcr.io/runslikebutter/license-plate-recorder:release \
+--input rtsp://172.16.1.114:8554/live/camera1
+```
 
 ### Installation
 
@@ -28,8 +45,6 @@ pip install -r requirements.txt
 ### Basic Usage
 
 ```bash
-# Process a video file with preview
-python main.py --input video.mp4 --preview
 
 # Process RTSP stream (headless)
 python main.py --input rtsp://camera-ip:554/stream
@@ -40,18 +55,6 @@ python main.py --input /path/to/videos/ --batch
 # Custom output directory
 python main.py --input video.mp4 --preview --output-dir ./my_recordings
 ```
-
-### Interactive Controls (Preview Mode)
-
-| Key | Action |
-|-----|--------|
-| `q` | Quit application |
-| `e` | Toggle zone editing mode |
-| `z` | Enable/disable detection zone |
-| `h` | Toggle help overlay |
-| `s` | Save screenshot |
-| `d` | Toggle debug information |
-| `Space` | Pause/Resume |
 
 ## Configuration
 
@@ -71,8 +74,6 @@ tracking:
   min_detections_for_recording: 3  # Detections needed before saving
 ```
 
-Detection zones are saved in `detection_zone.json` and can be edited interactively by pressing `e` in preview mode.
-
 ## Project Structure
 
 ```
@@ -91,48 +92,6 @@ license-plate-recorder/
 └── docs/                   # Detailed documentation
 ```
 
-## How It Works
-
-1. **Capture**: Reads frames from RTSP stream, video file, or directory
-2. **Detect**: Runs Fast-ALPR (YOLO v9 + OCR) on center-cropped frames
-3. **Filter**: Applies detection zone to ignore irrelevant areas
-4. **Track**: Matches detections across frames, aggregates OCR readings
-5. **Record**: Triggers recording when confidence threshold met, saves with pre/post buffers
-
-All frames are continuously buffered in memory, so when a plate is detected, the system can "rewind" and include footage from before the detection event.
-
-## Deployment
-
-### Development/Testing
-Run locally with Python virtual environment (see Quick Start above).
-
-### Production (Jetson)
-See `docs/JETSON-DEPLOYMENT.md` for detailed instructions on:
-- Docker deployment
-- Hardware acceleration setup
-- Systemd service configuration
-- SSH deployment scripts
-
-Use `deploy-jetson.sh` for automated Jetson deployment or build Docker containers with hardware decoder support.
-
-## Output
-
-Recordings are saved to `recordings/` with filenames in the format:
-```
-YYYYMMDD_HHMMSS_PLATETEXT.mp4
-```
-
-Example: `20240115_143025_ABC123.mp4`
-
-## Requirements
-
-- Python 3.8+
-- OpenCV with GStreamer support (for RTSP)
-- PyTorch 2.0+ (CPU or CUDA)
-- Fast-ALPR with ONNX runtime
-
-For Jetson-specific requirements, see `requirements-jetson.txt` and `required_libs/README.md`.
-
 ## Troubleshooting
 
 **No detections appearing:**
@@ -149,9 +108,3 @@ For Jetson-specific requirements, see `requirements-jetson.txt` and `required_li
 - Reduce `pre_plate_buffer` duration in config
 - Lower video resolution at source
 - Enable swap on Jetson devices
-
-## Notes
-
-This is a working prototype that's been tested with various RTSP cameras and video formats. The detection zone feature is particularly useful for fixed-camera installations where you want to ignore sky, adjacent lanes, or background traffic.
-
-The OCR aggregation in the tracker means plate text gets more accurate over time as the vehicle moves through the frame - usually reliable after 3-5 detections.
