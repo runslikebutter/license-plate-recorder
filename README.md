@@ -16,6 +16,10 @@ An automated license plate detection and recording system built for edge deploym
 you will need s3 bucket access data at runtime to upload recordings.
 
 ```bash
+docker pull ghcr.io/runslikebutter/license-plate-recorder:latest
+```
+
+```bash
 docker run -d \
 --log-driver=journald \
 --net=host \
