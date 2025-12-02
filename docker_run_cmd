@@ -5,6 +5,9 @@ docker run -d \
 --runtime=nvidia \
 --name lp-recorder \
 --user 1200:1200 \
+-e DEVICE_HOSTNAME=$(hostname) \
+-e S3_ACCESS_KEY_ID="your_key_id_here" \
+-e S3_SECRET_ACCESS_KEY="your_secret_key_here" \
 -v /mnt/data/recorder:/mnt/data/recorder \
 ghcr.io/runslikebutter/license-plate-recorder:release \
 --input rtsp://172.16.1.114:8554/live/camera1
